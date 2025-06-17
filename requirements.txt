@@ -1,0 +1,6 @@
+requests
+pynput
+openai-whisper
+sounddevice
+fastapi[all]
+numpy
