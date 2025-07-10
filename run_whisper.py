@@ -11,21 +11,21 @@ from fastapi.responses import JSONResponse
 
 load_dotenv()
 
-rec_device_env = os.getenv("REC_DEVICE")
+REC_DEVICE = os.getenv('REC_DEVICE') 
 
-if rec_device_env is None:
-    raise ValueError("Environment variable REC_DEVICE is not set")
+if REC_DEVICE is None:
+    raise ValueError('Environment variable REC_DEVICE is not set')
 
-REC_DEVICE = int(rec_device_env)
-
-DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "yes")
+REC_DEVICE = int(REC_DEVICE)
+LANGUAGE = os.getenv('LANGUAGE', 'en').lower()
+DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
 
 app = FastAPI()
 
 model = whisper.load_model(
-    "medium",
-    device="cpu",
-    download_root="./models/whisper"
+    'medium',
+    device='cpu',
+    download_root='./models/whisper'
 )
 
 # Variables de estado
@@ -33,7 +33,7 @@ recording = False
 audio_data = []
 sample_rate = 16000
 record_thread = None
-transcripcion_final = ""
+transcripcion_final = ''
 
 def grabar_audio(device_id=REC_DEVICE):
     global audio_data, recording
@@ -48,9 +48,9 @@ def grabar_audio(device_id=REC_DEVICE):
         device_name = device_info[0] if len(device_info) > 0 else str(device_id)
     if max_input_channels < 1:
         raise ValueError(
-            f"El dispositivo {device_id} no tiene canales de entrada"
+            f'El dispositivo {device_id} no tiene canales de entrada'
         )
-    print(f"Grabando audio desde el dispositivo: {device_name}")
+    print(f'Grabando audio desde el dispositivo: {device_name}')
     while recording:
         bloque = sd.rec(
             int(sample_rate * 1),
@@ -66,31 +66,31 @@ def normalizar_audio(audio_np):
     max_abs_val = np.max(np.abs(audio_np))
     if max_abs_val < 1e-3:
         print(
-            "Advertencia: audio demasiado bajo, posible problema de micrófono"
+            'Advertencia: audio demasiado bajo, posible problema de micrófono'
         )
         return audio_np
     return audio_np / max_abs_val
 
-@app.post("/start")
+@app.post('/start')
 def start_recording():
     global recording, audio_data, record_thread
     if recording:
         return JSONResponse(
-            content={"status": "Ya está grabando"},
+            content={'status': 'Ya está grabando'},
             status_code=400
         )
     audio_data = []
     recording = True
     record_thread = threading.Thread(target=grabar_audio)
     record_thread.start()
-    return {"status": "Grabación iniciada"}
+    return {'status': 'Grabación iniciada'}
 
-@app.post("/stop")
+@app.post('/stop')
 def stop_recording():
     global recording, audio_data, transcripcion_final
     if not recording:
         return JSONResponse(
-            content={"status": "No estaba grabando"},
+            content={'status': 'No estaba grabando'},
             status_code=400
         )
     recording = False
@@ -98,32 +98,32 @@ def stop_recording():
     audio_np = np.concatenate(audio_data, axis=0)
     if audio_np.ndim > 1:
         audio_np = np.squeeze(audio_np)
-    print("Procesando audio...")
+    print('Procesando audio...')
     if DEBUG:
         print(
-            f"Array shape: {audio_np.shape} - ",
-            f"Audio data type: {audio_np.dtype} - ",
-            f"Max. audio: {np.max(audio_np)} - ",
-            f"Min. audio: {np.min(audio_np)}"
+            f'Array shape: {audio_np.shape} - ',
+            f'Audio data type: {audio_np.dtype} - ',
+            f'Max. audio: {np.max(audio_np)} - ',
+            f'Min. audio: {np.min(audio_np)}'
         )
-        print("Guardando archivo de audio...")
+        print('Guardando archivo de audio...')
         # Guardar el audio grabado para depuración
-        wavfile.write("debug.wav", sample_rate, audio_np)
+        wavfile.write('debug.wav', sample_rate, audio_np)
     audio_np = normalizar_audio(audio_np)
-    result = model.transcribe(audio_np, language="es", fp16=False)
-    transcripcion_final = result["text"]
+    result = model.transcribe(audio_np, language=LANGUAGE, fp16=False)
+    transcripcion_final = result['text']
     return {
-        "status": "Grabación detenida",
-        "transcripcion": transcripcion_final
+        'status': 'Grabación detenida',
+        'transcripcion': transcripcion_final
     }
 
 
-@app.get("/transcripcion")
+@app.get('/transcripcion')
 def get_transcripcion():
-    return {"transcripcion": transcripcion_final}
+    return {'transcripcion': transcripcion_final}
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     import uvicorn
     uvicorn.run(
         'run_whisper:app',
