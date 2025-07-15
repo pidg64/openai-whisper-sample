@@ -1,5 +1,6 @@
 import os
-import whisper
+import time
+# import whisper
 import threading
 import numpy as np
 import sounddevice as sd
@@ -7,35 +8,42 @@ import sounddevice as sd
 from fastapi import FastAPI
 from scipy.io import wavfile
 from dotenv import load_dotenv
+from faster_whisper import WhisperModel
 from fastapi.responses import JSONResponse
 
 load_dotenv()
 
-REC_DEVICE = os.getenv('REC_DEVICE') 
-
+REC_DEVICE = os.getenv('REC_DEVICE')
 if REC_DEVICE is None:
     raise ValueError('Environment variable REC_DEVICE is not set')
-
 REC_DEVICE = int(REC_DEVICE)
 LANGUAGE = os.getenv('LANGUAGE', 'en').lower()
+VAD_MIN_SILENCE_DURATION_MS = int(
+    os.getenv('VAD_MIN_SILENCE_DURATION_MS', '500')
+)
 DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
 
 app = FastAPI()
 
-model = whisper.load_model(
-    'medium',
+model = WhisperModel(
+    'base.en',
     device='cpu',
-    download_root='./models/whisper'
+    compute_type='int8',
+    download_root='./models/faster-whisper'
 )
+# model = whisper.load_model(
+#     'medium',
+#     device='cpu',
+#     download_root='./models/whisper'
+# )
 
-# Variables de estado
 recording = False
 audio_data = []
 sample_rate = 16000
 record_thread = None
 transcripcion_final = ''
 
-def grabar_audio(device_id=REC_DEVICE):
+def record_audio(device_id):
     global audio_data, recording
     device_info = sd.query_devices(device_id, 'input')
     # device_info is a dict-like object, but if it's a tuple, convert to dict
@@ -48,11 +56,12 @@ def grabar_audio(device_id=REC_DEVICE):
         device_name = device_info[0] if len(device_info) > 0 else str(device_id)
     if max_input_channels < 1:
         raise ValueError(
-            f'El dispositivo {device_id} no tiene canales de entrada'
+            f'Device {device_id} does not have input channels'
         )
-    print(f'Grabando audio desde el dispositivo: {device_name}')
+    print(f'Available recording devices: {sd.query_devices(kind="input")}')
+    print(f'Recording audio from device: {device_name}')
     while recording:
-        bloque = sd.rec(
+        block = sd.rec(
             int(sample_rate * 1),
             samplerate=sample_rate,
             channels=1,
@@ -60,13 +69,13 @@ def grabar_audio(device_id=REC_DEVICE):
             device=device_id
         )
         sd.wait()
-        audio_data.append(np.squeeze(bloque))
+        audio_data.append(np.squeeze(block))
 
-def normalizar_audio(audio_np):
+def normalize_audio(audio_np):
     max_abs_val = np.max(np.abs(audio_np))
     if max_abs_val < 1e-3:
         print(
-            'Advertencia: audio demasiado bajo, posible problema de micrófono'
+            'Warning: audio too quiet, possible microphone issue'
         )
         return audio_np
     return audio_np / max_abs_val
@@ -76,21 +85,21 @@ def start_recording():
     global recording, audio_data, record_thread
     if recording:
         return JSONResponse(
-            content={'status': 'Ya está grabando'},
+            content={'status': 'Already recording'},
             status_code=400
         )
     audio_data = []
     recording = True
-    record_thread = threading.Thread(target=grabar_audio)
+    record_thread = threading.Thread(target=record_audio, args=(REC_DEVICE,))
     record_thread.start()
-    return {'status': 'Grabación iniciada'}
+    return {'status': 'Recording started'}
 
 @app.post('/stop')
 def stop_recording():
     global recording, audio_data, transcripcion_final
     if not recording:
         return JSONResponse(
-            content={'status': 'No estaba grabando'},
+            content={'status': 'Not recording'},
             status_code=400
         )
     recording = False
@@ -98,7 +107,6 @@ def stop_recording():
     audio_np = np.concatenate(audio_data, axis=0)
     if audio_np.ndim > 1:
         audio_np = np.squeeze(audio_np)
-    print('Procesando audio...')
     if DEBUG:
         print(
             f'Array shape: {audio_np.shape} - ',
@@ -106,21 +114,32 @@ def stop_recording():
             f'Max. audio: {np.max(audio_np)} - ',
             f'Min. audio: {np.min(audio_np)}'
         )
-        print('Guardando archivo de audio...')
-        # Guardar el audio grabado para depuración
+        print('Saving audio file...')
         wavfile.write('debug.wav', sample_rate, audio_np)
-    audio_np = normalizar_audio(audio_np)
-    result = model.transcribe(audio_np, language=LANGUAGE, fp16=False)
-    transcripcion_final = result['text']
+    print('Normalyzing recorded audio')
+    audio_np = normalize_audio(audio_np)
+    print('Transcribing audio')
+    start_time = time.time()
+    segments, info = model.transcribe(
+        audio_np,
+        language=LANGUAGE,
+        beam_size=5,
+        vad_filter=True,
+        vad_parameters=dict(min_silence_duration_ms=VAD_MIN_SILENCE_DURATION_MS),
+    )
+    transcripcion_final = "".join(segment.text for segment in segments)
+    print(f"Transcription time: {time.time() - start_time:.2f} seconds")
+    # result = model.transcribe(audio_np, language=LANGUAGE, fp16=False)
+    # transcripcion_final = result['text']
     return {
-        'status': 'Grabación detenida',
-        'transcripcion': transcripcion_final
+        'status': 'Recording stopped',
+        'transcription': transcripcion_final
     }
 
 
-@app.get('/transcripcion')
+@app.get('/transcription')
 def get_transcripcion():
-    return {'transcripcion': transcripcion_final}
+    return {'transcription': transcripcion_final}
 
 
 if __name__ == '__main__':

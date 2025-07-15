@@ -1,6 +1,6 @@
-# Voice Transcription System with Spacebar
+# Voice Transcription System
 
-This project allows you to transcribe audio in Spanish using OpenAI's Whisper model. The system consists of a REST API that handles recording and transcription, and a keyboard control script that lets you start and stop recordings by pressing the spacebar.
+This project allows you to transcribe audio in English using a `faster-whisper`, a reimplementation of OpenAI's Whisper model. The system consists of a REST API that handles recording and transcription, and a keyboard control script that lets you start and stop recordings by pressing the spacebar.
 
 ## Requirements
 
@@ -17,10 +17,22 @@ This project allows you to transcribe audio in Spanish using OpenAI's Whisper mo
 pip install -r requirements.txt
 ```
 
-3. Set the `REC_DEVICE` environment variable with your recording device ID.
+3. Set up your environment variables. You can create a `.env` file in the project root or export them in your shell.
 
-```bash
-export REC_DEVICE=1  # Adjust this number according to your device
+### Environment Variables
+
+- `REC_DEVICE`: **(Required)** The ID of your recording device. The application will print a list of available devices when it starts, which can help you find the correct ID.
+- `LANGUAGE`: The language for transcription. Defaults to `en`.
+- `VAD_MIN_SILENCE_DURATION_MS`: The minimum duration of silence in milliseconds for the Voice Activity Detection (VAD) filter. Defaults to `500`.
+- `DEBUG`: Set to `True` to enable debug mode, which saves the recorded audio to `debug.wav`. Defaults to `False`.
+
+Example `.env` file:
+
+```
+REC_DEVICE=1
+LANGUAGE=en
+VAD_MIN_SILENCE_DURATION_MS=500
+DEBUG=True
 ```
 
 ## Usage
@@ -33,7 +45,7 @@ First, you need to start the Whisper API server:
 python run_whisper.py
 ```
 
-This command will start the server at `http://0.0.0.0:8001`.
+This command will start the server at `http://0.0.0.0:8001`. When it starts, it will print a list of available input audio devices. Note the ID of the device you want to use and set it in the `REC_DEVICE` environment variable.
 
 ### 2. Run the keyboard controller
 
@@ -61,12 +73,12 @@ The `spacebar.py` script works as follows:
 ## Important notes
 
 - The `spacebar.py` script completely depends on the REST API running beforehand.
-- The transcription is configured for Spanish by default.
+- The transcription is configured for English by default but can be changed with the `LANGUAGE` environment variable.
 - To exit the control script, press Ctrl+C in the terminal.
-- If you have issues with the audio device, configure the `REC_DEVICE` variable with the correct ID of your device.
+- If you have issues with the audio device, check the list of available devices printed by `run_whisper.py` and configure the `REC_DEVICE` variable with the correct ID.
 
 ## Troubleshooting
 
 - If the API doesn't respond, check that the server is active on port 8001.
-- If the transcriptions are poor, check your microphone's audio level.
-- To activate debug mode, set the environment variable `DEBUG=True`.
+- If the transcriptions are poor, check your microphone's audio level or try adjusting `VAD_MIN_SILENCE_DURATION_MS`.
+- To activate debug mode, set the environment variable `DEBUG=True`. This will save the recorded audio as `debug.wav` for inspection.

@@ -1,6 +1,8 @@
 requests
 pynput
-openai-whisper
+# openai-whisper
+faster-whisper
 sounddevice
 fastapi[all]
 numpy
+silero-vad
