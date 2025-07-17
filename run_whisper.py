@@ -1,6 +1,6 @@
 import os
 import time
-# import whisper
+import uvicorn
 import threading
 import numpy as np
 import sounddevice as sd
@@ -11,8 +11,13 @@ from dotenv import load_dotenv
 from faster_whisper import WhisperModel
 from fastapi.responses import JSONResponse
 
+from sound_utils import (
+    check_device_availability, print_available_devices, normalize_audio
+)
+
 load_dotenv()
 
+# Load environment variables
 REC_DEVICE = os.getenv('REC_DEVICE')
 if REC_DEVICE is None:
     raise ValueError('Environment variable REC_DEVICE is not set')
@@ -26,22 +31,19 @@ DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
 app = FastAPI()
 
 model = WhisperModel(
-    'base.en',
+    'small.en',
     device='cpu',
     compute_type='int8',
     download_root='./models/faster-whisper'
 )
-# model = whisper.load_model(
-#     'medium',
-#     device='cpu',
-#     download_root='./models/whisper'
-# )
 
+# Global variables for recording state
 recording = False
 audio_data = []
 sample_rate = 16000
 record_thread = None
 transcripcion_final = ''
+
 
 def record_audio(device_id):
     global audio_data, recording
@@ -58,7 +60,6 @@ def record_audio(device_id):
         raise ValueError(
             f'Device {device_id} does not have input channels'
         )
-    print(f'Available recording devices: {sd.query_devices(kind="input")}')
     print(f'Recording audio from device: {device_name}')
     while recording:
         block = sd.rec(
@@ -71,14 +72,6 @@ def record_audio(device_id):
         sd.wait()
         audio_data.append(np.squeeze(block))
 
-def normalize_audio(audio_np):
-    max_abs_val = np.max(np.abs(audio_np))
-    if max_abs_val < 1e-3:
-        print(
-            'Warning: audio too quiet, possible microphone issue'
-        )
-        return audio_np
-    return audio_np / max_abs_val
 
 @app.post('/start')
 def start_recording():
@@ -93,6 +86,7 @@ def start_recording():
     record_thread = threading.Thread(target=record_audio, args=(REC_DEVICE,))
     record_thread.start()
     return {'status': 'Recording started'}
+
 
 @app.post('/stop')
 def stop_recording():
@@ -124,8 +118,9 @@ def stop_recording():
         audio_np,
         language=LANGUAGE,
         beam_size=5,
-        vad_filter=True,
-        vad_parameters=dict(min_silence_duration_ms=VAD_MIN_SILENCE_DURATION_MS),
+        # Uncomment to activate VAD (Voice Activity Detection)
+        # vad_filter=True,
+        # vad_parameters=dict(min_silence_duration_ms=VAD_MIN_SILENCE_DURATION_MS),
     )
     transcripcion_final = "".join(segment.text for segment in segments)
     print(f"Transcription time: {time.time() - start_time:.2f} seconds")
@@ -143,7 +138,8 @@ def get_transcripcion():
 
 
 if __name__ == '__main__':
-    import uvicorn
+    print_available_devices()
+    check_device_availability(REC_DEVICE)
     uvicorn.run(
         'run_whisper:app',
         host='0.0.0.0',
