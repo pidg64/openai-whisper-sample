@@ -1,6 +1,8 @@
 # Voice Transcription System
 
-This project allows you to transcribe audio in English using a `faster-whisper`, a reimplementation of OpenAI's Whisper model. The system consists of a REST API that handles recording and transcription, and a keyboard control script that lets you start and stop recordings by pressing the spacebar.
+This project allows you to transcribe audio in English using `faster-whisper`, a reimplementation of OpenAI's Whisper model. The system consists of a REST API that handles recording and transcription, and a keyboard control script that lets you start and stop recordings by pressing the spacebar.
+
+The transcription model used is `small.en`, which provides a good balance between speed and accuracy for English transcription.
 
 ## Requirements
 
@@ -23,7 +25,7 @@ pip install -r requirements.txt
 
 - `REC_DEVICE`: **(Required)** The ID of your recording device. The application will print a list of available devices when it starts, which can help you find the correct ID.
 - `LANGUAGE`: The language for transcription. Defaults to `en`.
-- `VAD_MIN_SILENCE_DURATION_MS`: The minimum duration of silence in milliseconds for the Voice Activity Detection (VAD) filter. Defaults to `500`.
+- `VAD_MIN_SILENCE_DURATION_MS`: The minimum duration of silence in milliseconds for the Voice Activity Detection (VAD) filter. Defaults to `500`. Note: The VAD filter is disabled by default in the code.
 - `DEBUG`: Set to `True` to enable debug mode, which saves the recorded audio to `debug.wav`. Defaults to `False`.
 
 Example `.env` file:
@@ -59,6 +61,27 @@ python spacebar.py
 
 - **Press the spacebar once** to start recording.
 - **Press the spacebar again** to stop recording and see the transcription.
+
+### Enabling Voice Activity Detection (VAD)
+
+By default, Voice Activity Detection (VAD) is disabled. VAD helps in filtering out silent parts of the audio, which can improve transcription accuracy by preventing the model from processing noise.
+
+To enable it, you need to edit `run_whisper.py` and uncomment the `vad_filter` lines in the `model.transcribe()` call:
+
+```python
+# ... inside stop_recording() function in run_whisper.py
+
+    segments, info = model.transcribe(
+        audio_np,
+        language=LANGUAGE,
+        beam_size=5,
+        # Uncomment to activate VAD (Voice Activity Detection)
+        vad_filter=True,
+        vad_parameters=dict(min_silence_duration_ms=VAD_MIN_SILENCE_DURATION_MS),
+    )
+```
+
+You can then adjust the `VAD_MIN_SILENCE_DURATION_MS` environment variable to control how sensitive the VAD is.
 
 ## How spacebar.py works
 
