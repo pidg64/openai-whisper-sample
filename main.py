@@ -97,7 +97,8 @@ def stop_recording():
             status_code=400
         )
     recording = False
-    record_thread.join()
+    if record_thread:
+        record_thread.join()
     audio_np = np.concatenate(audio_data, axis=0)
     if audio_np.ndim > 1:
         audio_np = np.squeeze(audio_np)
@@ -141,7 +142,7 @@ if __name__ == '__main__':
     print_available_devices()
     check_device_availability(REC_DEVICE)
     uvicorn.run(
-        'run_whisper:app',
+        'main:app',
         host='0.0.0.0',
         port=8001
     )

@@ -44,7 +44,7 @@ DEBUG=True
 First, you need to start the Whisper API server:
 
 ```bash
-python run_whisper.py
+python main.py
 ```
 
 This command will start the server at `http://0.0.0.0:8001`. When it starts, it will print a list of available input audio devices. Note the ID of the device you want to use and set it in the `REC_DEVICE` environment variable.
@@ -66,10 +66,10 @@ python spacebar.py
 
 By default, Voice Activity Detection (VAD) is disabled. VAD helps in filtering out silent parts of the audio, which can improve transcription accuracy by preventing the model from processing noise.
 
-To enable it, you need to edit `run_whisper.py` and uncomment the `vad_filter` lines in the `model.transcribe()` call:
+To enable it, you need to edit `main.py` and uncomment the `vad_filter` lines in the `model.transcribe()` call:
 
 ```python
-# ... inside stop_recording() function in run_whisper.py
+# ... inside stop_recording() function in main.py
 
     segments, info = model.transcribe(
         audio_np,
@@ -98,7 +98,7 @@ The `spacebar.py` script works as follows:
 - The `spacebar.py` script completely depends on the REST API running beforehand.
 - The transcription is configured for English by default but can be changed with the `LANGUAGE` environment variable.
 - To exit the control script, press Ctrl+C in the terminal.
-- If you have issues with the audio device, check the list of available devices printed by `run_whisper.py` and configure the `REC_DEVICE` variable with the correct ID.
+- If you have issues with the audio device, check the list of available devices printed by `main.py` and configure the `REC_DEVICE` variable with the correct ID.
 
 ## Troubleshooting
 
