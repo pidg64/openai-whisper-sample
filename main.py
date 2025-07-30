@@ -28,7 +28,7 @@ VAD_MIN_SILENCE_DURATION_MS = int(
 )
 DEBUG = os.getenv('DEBUG', 'False').lower() in ('true', '1', 'yes')
 
-app = FastAPI()
+app = FastAPI(title='Whisper API')
 
 model = WhisperModel(
     'small.en',
